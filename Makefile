@@ -145,13 +145,8 @@ build-images:  ## Build container images
 .PHONY: stack-start
 stack-start:  ## Local Stack: Start Services
 	@echo "Start local Docker stack"
-	VOLTO_VERSION=$(VOLTO_VERSION) PLONE_VERSION=$(PLONE_VERSION) docker compose -f docker-compose.yml up -d --build
-	@echo "Now visit: http://keycloak-and-plone.localhost"
-
-.PHONY: stack-create-site
-stack-create-site:  ## Local Stack: Create a new site
-	@echo "Create a new site in the local Docker stack"
-	VOLTO_VERSION=$(VOLTO_VERSION) PLONE_VERSION=$(PLONE_VERSION) docker compose -f docker-compose.yml exec backend ./docker-entrypoint.sh create-site
+	@docker compose -f docker-compose.yml up -d --build
+	@echo "Now visit: http://sso.localhost"
 
 .PHONY: stack-status
 stack-status:  ## Local Stack: Check Status
@@ -167,68 +162,3 @@ stack-stop:  ##  Local Stack: Stop Services
 stack-rm:  ## Local Stack: Remove Services and Volumes
 	@echo "Remove local Docker stack"
 	@docker compose -f docker-compose.yml down
-	@echo "Remove local volume data"
-	@docker volume rm $(PROJECT_NAME)_vol-site-data
-
-###########################################
-# Acceptance
-###########################################
-.PHONY: acceptance-backend-dev-start
-acceptance-backend-dev-start:
-	@echo "Start acceptance backend"
-	$(MAKE) -C "./backend/" acceptance-backend-start
-
-.PHONY: acceptance-frontend-dev-start
-acceptance-frontend-dev-start:
-	@echo "Start acceptance frontend"
-	$(MAKE) -C "./frontend/" acceptance-frontend-dev-start
-
-.PHONY: acceptance-test
-acceptance-test:
-	@echo "Start acceptance tests in interactive mode"
-	$(MAKE) -C "./frontend/" acceptance-test
-
-# Build Docker images
-.PHONY: acceptance-frontend-image-build
-acceptance-frontend-image-build:
-	@echo "Build acceptance frontend image"
-	@docker build frontend -t collective/keycloak-and-plone-frontend:acceptance -f frontend/Dockerfile --build-arg VOLTO_VERSION=$(VOLTO_VERSION)
-
-.PHONY: acceptance-backend-image-build
-acceptance-backend-image-build:
-	@echo "Build acceptance backend image"
-	@docker build backend -t collective/keycloak-and-plone-backend:acceptance -f backend/Dockerfile.acceptance --build-arg PLONE_VERSION=$(PLONE_VERSION)
-
-.PHONY: acceptance-images-build
-acceptance-images-build: ## Build Acceptance frontend/backend images
-	$(MAKE) acceptance-backend-image-build
-	$(MAKE) acceptance-frontend-image-build
-
-.PHONY: acceptance-frontend-container-start
-acceptance-frontend-container-start:
-	@echo "Start acceptance frontend"
-	@docker run --rm -p 3000:3000 --name keycloak-and-plone-frontend-acceptance --link keycloak-and-plone-backend-acceptance:backend -e RAZZLE_API_PATH=http://localhost:55001/plone -e RAZZLE_INTERNAL_API_PATH=http://backend:55001/plone -d collective/keycloak-and-plone-frontend:acceptance
-
-.PHONY: acceptance-backend-container-start
-acceptance-backend-container-start:
-	@echo "Start acceptance backend"
-	@docker run --rm -p 55001:55001 --name keycloak-and-plone-backend-acceptance -d collective/keycloak-and-plone-backend:acceptance
-
-.PHONY: acceptance-containers-start
-acceptance-containers-start: ## Start Acceptance containers
-	$(MAKE) acceptance-backend-container-start
-	$(MAKE) acceptance-frontend-container-start
-
-.PHONY: acceptance-containers-stop
-acceptance-containers-stop: ## Stop Acceptance containers
-	@echo "Stop acceptance containers"
-	@docker stop keycloak-and-plone-frontend-acceptance
-	@docker stop keycloak-and-plone-backend-acceptance
-
-.PHONY: ci-acceptance-test
-ci-acceptance-test:
-	@echo "Run acceptance tests in CI mode"
-	$(MAKE) acceptance-containers-start
-	pnpm dlx wait-on --httpTimeout 20000 http-get://localhost:55001/plone http://localhost:3000
-	$(MAKE) -C "./frontend/" ci-acceptance-test
-	$(MAKE) acceptance-containers-stop
