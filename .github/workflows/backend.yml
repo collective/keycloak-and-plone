@@ -36,13 +36,9 @@ jobs:
   test:
     name: "Backend: Test"
     uses: plone/meta/.github/workflows/backend-pytest.yml@2.x
-    strategy:
-      matrix:
-        python-version: ["3.13", "3.12", "3.11", "3.10"]
-        plone-version: ["6.1-latest", "6.0-latest"]
     with:
-      python-version: ${{ matrix.python-version }}
-      plone-version: ${{ matrix.plone-version }}
+      python-version: ${{ inputs.python-version }}
+      plone-version: ${{ inputs.plone-version }}
       working-directory: ${{ inputs.working-directory }}
 
   coverage:
@@ -75,6 +71,7 @@ jobs:
     secrets:
       username: ${{ github.actor }}
       password: ${{ secrets.GITHUB_TOKEN }}
+
   report:
     name: "Final report"
     if: ${{ always() }}
