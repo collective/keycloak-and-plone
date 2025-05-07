@@ -1,0 +1,37 @@
+[repository]
+name = "keycloak-and-plone"
+managed_by_uv = false
+changelog = "CHANGELOG.md"
+version = "version.txt"
+compose = "docker-compose.yml"
+
+[repository.towncrier]
+section = "Project"
+settings = "towncrier.toml"
+
+[backend]
+path = "backend"
+
+[backend.package]
+name = "handson.keycloak"
+path = "backend"
+changelog = "backend/CHANGELOG.md"
+towncrier_settings = "backend/pyproject.toml"
+base_package = "Products.CMFPlone"
+publish = false
+
+[frontend]
+path = "frontend"
+
+[frontend.package]
+name = "volto-handson-keycloak"
+path = "frontend/packages/volto-handson-keycloak"
+changelog = "frontend/packages/volto-handson-keycloak/CHANGELOG.md"
+towncrier_settings = "frontend/packages/volto-handson-keycloak/towncrier.toml"
+base_package = "@plone/volto"
+publish = false
+
+[cookieplone]
+template = "project"
+template_version = "27a6b7bd7b0ba9a77b04109d73c4ee975ab95cc3"
+generated_date = "2025-05-06 21:39:02"

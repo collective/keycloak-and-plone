@@ -1,0 +1,100 @@
+---
+name: keycloak-and-plone
+
+services:
+  traefik:
+    image: traefik:v2.11
+
+    ports:
+      - 80:80
+
+    labels:
+      - traefik.enable=true
+      - traefik.constraint-label=public
+      - traefik.http.routers.traefik-public-http.rule=Host(`traefik.keycloak-and-plone.localhost`)
+      - traefik.http.routers.traefik-public-http.entrypoints=http
+      - traefik.http.routers.traefik-public-http.service=api@internal
+      - traefik.http.services.traefik-public.loadbalancer.server.port=8000
+
+      # GENERIC MIDDLEWARES
+      - traefik.http.middlewares.gzip.compress=true
+      - traefik.http.middlewares.gzip.compress.excludedcontenttypes=image/png, image/jpeg, font/woff2
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    command:
+      - --providers.docker
+      - --providers.docker.constraints=Label(`traefik.constraint-label`, `public`)
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.http.address=:80
+      - --accesslog
+      - --log
+      - --api
+
+  keycloak:
+    build:
+      context: devops/keycloak
+      args:
+        KEYCLOAK_VERSION: ${KEYCLOAK_VERSION:-22.0.0}
+    command: ['start-dev', '--import-realm']
+    depends_on:
+      - keycloak-db
+      - ldap
+      - traefik
+    environment:
+      JAVA_OPTS_APPEND: -Dkeycloak.profile.feature.upload_scripts=enabled
+      KC_DB: postgres
+      KC_DB_PASSWORD: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db/keycloak
+      KC_DB_USERNAME: postgres
+      KC_HEALTH_ENABLED: false
+      KC_HTTP_ENABLED: true
+      KC_METRICS_ENABLED: false
+      KC_HOSTNAME_URL: http://sso.localhost/
+      KC_PROXY: reencrypt
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    labels:
+      - traefik.enable=true
+      - traefik.constraint-label=public
+      # Service
+      - traefik.http.services.svc-keycloak.loadbalancer.server.port=8080
+      # Routers
+      ## /
+      ### Router: Varnish Public
+      - traefik.http.routers.rt-keycloak-public.rule=Host(`sso.localhost`)
+      - traefik.http.routers.rt-keycloak-public.entrypoints=http
+      - traefik.http.routers.rt-keycloak-public.service=svc-keycloak
+      - traefik.http.routers.rt-keycloak-public.middlewares=gzip
+    volumes:
+      - ./devops/keycloak/import:/opt/keycloak/data/import
+    ports:
+      - 8180:8080
+
+  keycloak-db:
+    image: postgres:14.9
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "postgres", "-U", "root" ]
+      timeout: 45s
+      interval: 5s
+      retries: 10
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: keycloak
+      POSTGRES_HOST: postgres
+
+  ldap:
+    image: osixia/openldap:${OPENLDAP_VERSION:-1.5.0}
+    environment:
+        - "LDAP_ORGANISATION=ploneorg"
+        - "LDAP_DOMAIN=plone.org"
+        - "LDAP_BASE_DN=dc=plone,dc=org"
+        - "LDAP_ADMIN_PASSWORD=n0m0res3crets"
+        - "LDAP_SEED_INTERNAL_LDIF_PATH=/data/import/data.ldif"
+    ports:
+        - 389:389
+        - 636:636
+    volumes:
+      - ./devops/openldap/import:/data/import
